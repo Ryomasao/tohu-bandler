@@ -1,14 +1,14 @@
-const modules = { bar: wrapper };
+exports.bar = () => {
+  return "im bar";
+};
 
-function wrapper(module, exports) {
-  exports.bar = () => {
-    return "im bar";
-  };
-  exports.foo = () => {
-    return modules["src/bar.js"].bar();
-  };
-  exports.baz = "baz";
-}
+exports.baz = "baz";
+
+
+
+exports.foo = () => {
+  return modules['target/bar.js'].bar();
+};
 
 exports.foo2 = () => {
   return "hello";
@@ -16,10 +16,14 @@ exports.foo2 = () => {
 
 exports.foo3 = "foo3";
 
+
+
+
+
 const main = () => {
-  modules["src/foo.js"].foo();
-  modules["src/bar.js"].bar();
-  console.log(modules["src/baz.js"].baz);
+  modules['target/foo.js'].foo();
+  modules['target/bar.js'].bar();
+  console.log(modules['target/baz.js'].baz);
 };
 
 main();

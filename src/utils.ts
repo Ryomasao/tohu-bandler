@@ -1,10 +1,51 @@
 import path from "path";
-import { writeFileSync, readFileSync } from "fs";
+import { readFileSync } from "fs";
+
+export const getAllDependencies = (entryFileName: string) => {
+  let queue = [entryFileName];
+  const allFiles = [];
+
+  while (queue.length) {
+    const target = queue.shift() as string;
+    const code = readFileSync(target, "utf8");
+    const dirname = path.dirname(target);
+    const dependencies = getDependencies(code, dirname);
+    queue = [...queue, ...dependencies.map((d) => d.path)];
+    allFiles.push({
+      fileName: target,
+      code,
+      dependencies,
+    });
+  }
+  return allFiles;
+};
+
+type File = {
+  fileName: string;
+  code: string;
+  dependencies: {
+    importName: string;
+    path: string;
+  }[];
+};
+
+export const bundle = (files: File[]) => {
+  const output = [];
+  const cache = new Set();
+
+  for (const file of files.reverse()) {
+    if (cache.has(file.fileName)) continue;
+    cache.add(file.fileName);
+    output.push(replaceNativeStatement(file));
+  }
+
+  return output.join("\n");
+};
 
 /**
  * 引数に指定したソースコードからimportしているモジュール名を取得する。
  */
-const getDependencies = (code, basePath) => {
+const getDependencies = (code: string, basePath: string) => {
   const dependencies = [];
   const lines = code.split("\n");
 
@@ -28,31 +69,9 @@ const getDependencies = (code, basePath) => {
 };
 
 /**
- * 本体
- */
-const entryPoint = process.argv[2];
-let queue = [entryPoint];
-const allFiles = [];
-
-const getAllDependencies = () => {
-  while (queue.length) {
-    const target = queue.shift();
-    const code = readFileSync(target, "utf8");
-    const dirname = path.dirname(target);
-    const dependencies = getDependencies(code, dirname);
-    queue = [...queue, ...dependencies.map((d) => d.path)];
-    allFiles.push({
-      fileName: target,
-      code,
-      dependencies,
-    });
-  }
-};
-
-/**
  * import/exportをブラウザが解釈できる形に置換する
  */
-const replaceNativeStatement = (file) => {
+const replaceNativeStatement = (file: File) => {
   const importNames = file.dependencies.map((d) => d.importName);
   // named importしている変数を取得するためのざっくり正規表現
   // eg) 拾える変数
@@ -81,7 +100,8 @@ const replaceNativeStatement = (file) => {
         const refName = extractRefModule[1].trim();
         const moduleName = file.dependencies.find(
           (d) => d.importName === refName
-        ).path;
+        )?.path;
+
         nLine = nLine.replace(
           regexPattern,
           `modules['${moduleName}'].${refName}`
@@ -91,21 +111,3 @@ const replaceNativeStatement = (file) => {
     })
     .join("\n");
 };
-
-const bundle = () => {
-  const output = [];
-  const cache = new Set();
-
-  for (const file of allFiles.reverse()) {
-    if (cache.has(file.fileName)) continue;
-    cache.add(file.fileName);
-    output.push(replaceNativeStatement(file));
-  }
-
-  return output.join("\n");
-};
-
-getAllDependencies();
-const bundled = bundle();
-
-writeFileSync("test.js", bundled, "utf8");
