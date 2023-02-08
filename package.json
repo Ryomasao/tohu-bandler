@@ -1,4 +1,5 @@
 {
   "name": "tohu-bundler",
+  "type": "module",
   "packageManager": "yarn@3.3.1"
 }
