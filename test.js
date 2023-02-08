@@ -1,29 +1,23 @@
-exports.bar = () => {
+const exports = {};
+exports["target/bar.js"] = {};
+exports["target/baz.js"] = {};
+exports["target/bar.js"] = {};
+exports["target/foo.js"] = {};
+exports["target/entry.js"] = {};
+exports["target/bar.js"].bar = () => {
   return "im bar";
 };
 
-exports.baz = "baz";
+exports["target/baz.js"].baz = "baz";
 
-
-
-exports.foo = () => {
-  return modules['target/bar.js'].bar();
+exports["target/foo.js"].foo = () => {
+  return exports["target/bar.js"].bar();
 };
-
-exports.foo2 = () => {
-  return "hello";
-};
-
-exports.foo3 = "foo3";
-
-
-
-
 
 const main = () => {
-  modules['target/foo.js'].foo();
-  modules['target/bar.js'].bar();
-  console.log(modules['target/baz.js'].baz);
+  console.log(exports["target/foo.js"].foo());
+  console.log(exports["target/bar.js"].bar());
+  console.log(exports["target/baz.js"].baz);
 };
 
 main();

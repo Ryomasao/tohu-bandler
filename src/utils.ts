@@ -1,16 +1,29 @@
 import path from "path";
 import { readFileSync } from "fs";
 
+type File = {
+  fileName: string;
+  code: string;
+  dependencies: Dependencies[];
+};
+
+type Dependencies = {
+  importName: string;
+  path: string;
+};
+
 export const getAllDependencies = (entryFileName: string) => {
-  let queue = [entryFileName];
+  const queue = [entryFileName];
   const allFiles = [];
 
   while (queue.length) {
     const target = queue.shift() as string;
     const code = readFileSync(target, "utf8");
     const dirname = path.dirname(target);
-    const dependencies = getDependencies(code, dirname);
-    queue = [...queue, ...dependencies.map((d) => d.path)];
+    const dependencies = _getDependencies(code, dirname);
+
+    queue.push(...dependencies.map((d) => d.path));
+
     allFiles.push({
       fileName: target,
       code,
@@ -20,15 +33,6 @@ export const getAllDependencies = (entryFileName: string) => {
   return allFiles;
 };
 
-type File = {
-  fileName: string;
-  code: string;
-  dependencies: {
-    importName: string;
-    path: string;
-  }[];
-};
-
 export const bundle = (files: File[]) => {
   const output = [];
   const cache = new Set();
@@ -36,17 +40,21 @@ export const bundle = (files: File[]) => {
   for (const file of files.reverse()) {
     if (cache.has(file.fileName)) continue;
     cache.add(file.fileName);
-    output.push(replaceNativeStatement(file));
+    output.push(_replaceNativeStatement(file));
   }
 
-  return output.join("\n");
+  const def = "const exports = {}\n";
+  const init =
+    files.map((f) => `exports['${f.fileName}'] = {}`).join("\n") + "\n";
+  const code = output.join("\n");
+  return def.concat(init).concat(code);
 };
 
 /**
  * 引数に指定したソースコードからimportしているモジュール名を取得する。
  */
-const getDependencies = (code: string, basePath: string) => {
-  const dependencies = [];
+const _getDependencies = (code: string, basePath: string) => {
+  const dependencies: Dependencies[] = [];
   const lines = code.split("\n");
 
   for (const line of lines) {
@@ -71,8 +79,9 @@ const getDependencies = (code: string, basePath: string) => {
 /**
  * import/exportをブラウザが解釈できる形に置換する
  */
-const replaceNativeStatement = (file: File) => {
+const _replaceNativeStatement = (file: File) => {
   const importNames = file.dependencies.map((d) => d.importName);
+
   // named importしている変数を取得するためのざっくり正規表現
   // eg) 拾える変数
   // foo foo()
@@ -90,7 +99,10 @@ const replaceNativeStatement = (file: File) => {
 
       // import statement以外
       // exportを消す
-      let nLine = line.replace(/export const (.*) = (.*)/, "exports.$1 = $2");
+      let nLine = line.replace(
+        /export const (.*) = (.*)/,
+        `exports['${file.fileName}'].$1 = $2`
+      );
 
       if (importNames.length === 0) return nLine;
 
@@ -104,7 +116,7 @@ const replaceNativeStatement = (file: File) => {
 
         nLine = nLine.replace(
           regexPattern,
-          `modules['${moduleName}'].${refName}`
+          `exports['${moduleName}'].${refName}`
         );
       }
       return nLine;
